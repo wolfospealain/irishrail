@@ -7,6 +7,7 @@ from datetime import datetime
 from tkinter import *
 from threading import Thread
 from time import sleep
+import logging
 
 """
 Live Irish Rail Station Display
@@ -19,7 +20,12 @@ class IrishRailStations:
     url = "http://api.irishrail.ie/realtime/realtime.asmx/getAllStationsXML"
 
     def __init__(self):
-        xml = untangle.parse(self.url)
+        while True:
+            try:
+                xml = untangle.parse(self.url)
+                break
+            except Exception as error:
+                logging.debug(error)
         self.index = {}
         self.codes = []
         for station in xml.ArrayOfObjStation.children:
@@ -68,23 +74,26 @@ class IrishRailStationData:
         self.minutes = minutes
 
     def update(self):
-        xml = untangle.parse(self.url.format(self.station, self.minutes))
-        self.arrivals = []
-        self.departures = []
-        self.updated = datetime.now()
-        for entry in xml.ArrayOfObjStationData.children:
-            self.station_name = entry.Stationfullname.cdata
-            if entry.Stationfullname != entry.Origin:
-                train = IrishRailTrain(entry.Traincode.cdata.strip(), int(entry.Duein.cdata), entry.Origin.cdata,
-                                       entry.Destination.cdata, entry.Origintime.cdata, entry.Destinationtime.cdata,
-                                       entry.Exparrival.cdata, entry.Late.cdata, entry.Status.cdata,
-                                       entry.Lastlocation.cdata)
-                self.arrivals.append(train)
-            else:
-                train = IrishRailTrain(entry.Traincode.cdata.strip(), int(entry.Duein.cdata), entry.Origin.cdata,
-                                       entry.Destination.cdata, entry.Origintime.cdata, entry.Destinationtime.cdata,
-                                       entry.Expdepart.cdata, entry.Late.cdata, entry.Status.cdata)
-                self.departures.append(train)
+        try:
+            xml = untangle.parse(self.url.format(self.station, self.minutes))
+            self.arrivals = []
+            self.departures = []
+            self.updated = datetime.now()
+            for entry in xml.ArrayOfObjStationData.children:
+                self.station_name = entry.Stationfullname.cdata
+                if entry.Stationfullname != entry.Origin:
+                    train = IrishRailTrain(entry.Traincode.cdata.strip(), int(entry.Duein.cdata), entry.Origin.cdata,
+                                           entry.Destination.cdata, entry.Origintime.cdata, entry.Destinationtime.cdata,
+                                           entry.Exparrival.cdata, entry.Late.cdata, entry.Status.cdata,
+                                           entry.Lastlocation.cdata)
+                    self.arrivals.append(train)
+                else:
+                    train = IrishRailTrain(entry.Traincode.cdata.strip(), int(entry.Duein.cdata), entry.Origin.cdata,
+                                           entry.Destination.cdata, entry.Origintime.cdata, entry.Destinationtime.cdata,
+                                           entry.Expdepart.cdata, entry.Late.cdata, entry.Status.cdata)
+                    self.departures.append(train)
+        except Exception as error:
+            logging.debug(error)
 
     def arrivals_board(self):
         output = "LIVE STATION INFORMATION: " + self.station_name
@@ -133,19 +142,18 @@ class IrishRailStationData:
 
 
 class Application:
-    """Issues: No application icon. No station selection on GUI. No font options."""
 
-    text_colour = "orange"
-    background_colour = "black"
-    font = "Courier New"
-    font_size = 28
-
-    def __init__(self, screen, data_link, speed=60000, pages="both"):
+    def __init__(self, screen, data_link, speed=60000, pages="both", text_colour="orange", background_colour="black",
+                 font="Courier New", font_size=28):
         self.data_link = data_link
+        self.text_colour = text_colour
+        self.background_colour = background_colour
+        self.font = font
+        self.font_size = font_size
         self.pages = pages
         self.screen = screen
         self.screen.title("Irish Rail Live")
-        self.screen.configure(background="Black")
+        self.screen.configure(background=self.background_colour)
         self.screen.resizable(width=YES, height=YES)
         self.screen.attributes("-fullscreen", True)
         self.screen.bind("<F11>", self.toggle_fullscreen)
@@ -156,7 +164,7 @@ class Application:
         self.text.pack(expand=True, fill='both', padx=50, pady=50)
         self.screen.after(0, self.download_update, speed)
         self.screen.after(0, self.write_page, speed, pages)
-        self.screen.after(0, self.flash, "cursor", "orange", "black")
+        self.screen.after(0, self.flash, "cursor", self.text_colour, self.background_colour)
 
     def toggle_fullscreen(self, event=None):
         self.screen.attributes("-fullscreen", not self.screen.attributes("-fullscreen"))
@@ -220,6 +228,7 @@ def parse_command_line(version):
 
 def main():
     version = "18.08"
+    icon = "/usr/share/icons/gnome/256x256/apps/utilities-terminal.png"
     args = parse_command_line(version)
     print("\nConnecting ...")
     stations = IrishRailStations()
@@ -228,7 +237,8 @@ def main():
     else:
         data_link = IrishRailStationData(stations.lookup(args.station.upper()), args.minutes)
         if not args.text:
-            screen = Tk()
+            screen = Tk(className="Display")
+            screen.wm_iconphoto(True, PhotoImage(file=icon))
             app = Application(screen, data_link, args.speed, args.pages)
             screen.mainloop()
         else:
