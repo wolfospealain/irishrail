@@ -84,28 +84,31 @@ class IrishRailStationData:
                 if entry.Stationfullname != entry.Origin:
                     train = IrishRailTrain(entry.Traincode.cdata.strip(), int(entry.Duein.cdata), entry.Origin.cdata,
                                            entry.Destination.cdata, entry.Origintime.cdata, entry.Destinationtime.cdata,
-                                           entry.Exparrival.cdata, entry.Late.cdata, entry.Status.cdata,
+                                           entry.Exparrival.cdata, int(entry.Late.cdata), entry.Status.cdata,
                                            entry.Lastlocation.cdata)
                     self.arrivals.append(train)
                 else:
                     train = IrishRailTrain(entry.Traincode.cdata.strip(), int(entry.Duein.cdata), entry.Origin.cdata,
                                            entry.Destination.cdata, entry.Origintime.cdata, entry.Destinationtime.cdata,
-                                           entry.Expdepart.cdata, entry.Late.cdata, entry.Status.cdata)
+                                           entry.Expdepart.cdata, int(entry.Late.cdata), entry.Status.cdata)
                     self.departures.append(train)
         except Exception as error:
             logging.debug(error)
+
+    def late(self, minutes):
+        if minutes < 0:
+            return " (" + str(-minutes) + "m early) "
+        elif minutes > 0:
+            return " (" + str(minutes) + "m late) "
+        else:
+            return " "
 
     def arrivals_board(self):
         output = "LIVE STATION INFORMATION: " + self.station_name
         output += "\nUpdated: " + str(self.updated)[:16]
         output += "\n\nARRIVALS\n"
         for train in sorted(self.arrivals):
-            output += "\n" + str(
-                train.due) + "m\t" + train.origin + " to " + train.destination + " " + train.code + " (" + train.origin_time.replace(
-                ":", "") + "-" + train.destination_time.replace(":",
-                                                                "") + ") " + "\n\tDue " + train.expected + " (" + train.late + "m late) " + (
-                          train.status if train.status != "No Information" else " ") + (
-                          "\n\t" + train.last_location if train.last_location.strip() != "" else "") + "\n"
+            output += "\n" + str(train.due) + "m\t" + train.origin + " to " + train.destination + " " + train.code + " " + train.origin_time + "-" + train.destination_time + " " + "\n\tDue " + train.expected + self.late(train.late) + (train.status if train.status != "No Information" else " ") + ("\n\t" + train.last_location if train.last_location.strip() != "" else "") + "\n"
         return output
 
     def departures_board(self):
@@ -113,11 +116,7 @@ class IrishRailStationData:
         output += "\nUpdated: " + str(self.updated)[:16]
         output += "\n\nDEPARTURES\n"
         for train in sorted(self.departures):
-            output += "\n" + str(
-                train.due) + "m\t" + train.origin + " to " + train.destination + " " + train.code + " (" + train.origin_time.replace(
-                ":", "") + "-" + train.destination_time.replace(":",
-                                                                "") + ") " + "\n\tDepart. " + train.expected + " (" + train.late + "m late) " + (
-                          train.status if train.status != "No Information" else " ") + "\n"
+            output += "\n" + str(train.due) + "m\t" + train.origin + " to " + train.destination + " " + train.code + " " + train.origin_time + "-" + train.destination_time + " " + "\n\tDeparts " + train.expected + self.late(train.late) + (train.status if train.status != "No Information" else " ") + "\n"
         return output
 
     def text(self):
@@ -127,21 +126,19 @@ class IrishRailStationData:
             output += "\n" + str(
                 train.due) + "m\t" + train.origin + " to " + train.destination + " " + train.code + " (" + train.origin_time.replace(
                 ":", "") + "-" + train.destination_time.replace(":",
-                                                                "") + ") " + "Due " + train.expected + " (" + train.late + "m late) " + (
+                                                                "") + ") " + "Due " + train.expected + self.late(train.late) + (
                           train.status if train.status != "No Information" else " ") + " " + (
                           train.last_location if train.last_location.strip() != "" else "")
         output += "\n\nDEPARTURES\n"
         for train in sorted(self.departures):
             output += "\n" + str(
-                train.due) + "m\t" + train.origin + " to " + train.destination + " " + train.code + " (" + train.origin_time.replace(
-                ":", "") + "-" + train.destination_time.replace(":",
-                                                                "") + ") " + "Depart. " + train.expected + " (" + train.late + "m late) " + (
+                train.due) + "m\t" + train.origin + " to " + train.destination + " " + train.code + " " + train.origin_time + "-" + train.destination_time+ " " + "Departs " + train.expected + self.late(train.late) + (
                           train.status if train.status != "No Information" else " ")
         output += "\n\nUpdated: " + str(self.updated)[:16]
         return output
 
 
-class Application:
+class GUI:
 
     def __init__(self, screen, data_link, speed=60000, pages="both", text_colour="orange", background_colour="black",
                  font="Courier New", font_size=28):
@@ -239,7 +236,7 @@ def main():
         if not args.text:
             screen = Tk(className="Display")
             screen.wm_iconphoto(True, PhotoImage(file=icon))
-            app = Application(screen, data_link, args.speed, args.pages)
+            app = GUI(screen, data_link, args.speed, args.pages)
             screen.mainloop()
         else:
             while True:
